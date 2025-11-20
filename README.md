@@ -1,5 +1,7 @@
 # WhatsMeow SimpleBot — Single WhatsApp Instance
 
+>⚠️ Experimental — This project is in an early stage. Expect rapid changes and incomplete features. Use for testing, experimentation, or as a reference implementation
+
 This repository provides a single-instance WhatsApp bot built with Go and the whatsmeow library. Each running instance is meant to manage a single WhatsApp session (a single WhatsApp account). If you need multi-tenant or multi-account behavior, run multiple instances — one per account.
 
 Overview:
