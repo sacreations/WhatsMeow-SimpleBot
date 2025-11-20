@@ -151,19 +151,6 @@ src/
 
 ---
 
-## Development & Contributing
-
-If you'd like me to continue improving this single-instance scenario I can:
-
-1. Add API token-based authentication for the HTTP endpoints.
-2. Implement multipart/form-data endpoints for direct file uploads.
-3. Add unit & integration tests for the `src/api` package and senders.
-4. Clean up any leftover / deprecated files and finalize the repo layout.
-
-Tell me which item(s) you'd prefer next and I will implement them.
-
----
-
 ## Designed for orchestration by a main system
 
 This repository is designed as a single-instance worker for the primary WhatsApp bot project. It is not intended to be a multi-tenant gateway — instead, a separate main system (or supervisor) runs and manages many such instances where: start, stop, restart, delete, and add new instances are orchestrated centrally.
@@ -183,5 +170,4 @@ This worker is designed to be used by a supervisory system that may also impleme
 - secure secrets and API key distribution
 - scaling and health checks
 
-If you'd like, I can implement a small management endpoint or a supervisor interface (HTTP or CLI) for administrative actions to help the main system manage instances programmatically.
 
