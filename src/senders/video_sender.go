@@ -21,6 +21,10 @@ func NewVideoSender(client *whatsmeow.Client) VideoSender {
 }
 
 func (s *clientVideoSender) SendVideo(to types.JID, videoPath, caption string) error {
+	return s.SendVideoWithQuote(to, videoPath, caption, nil)
+}
+
+func (s *clientVideoSender) SendVideoWithQuote(to types.JID, videoPath, caption string, quotedMsg *QuotedMessage) error {
 	data, err := os.ReadFile(videoPath)
 	if err != nil {
 		return fmt.Errorf("failed to read video: %w", err)
@@ -39,6 +43,14 @@ func (s *clientVideoSender) SendVideo(to types.JID, videoPath, caption string) e
 		FileSHA256:    uploaded.FileSHA256,
 		FileLength:    proto.Uint64(uploaded.FileLength),
 		Caption:       proto.String(caption),
+	}
+
+	if quotedMsg != nil {
+		videoMsg.ContextInfo = &waE2E.ContextInfo{
+			StanzaID:      proto.String(quotedMsg.MessageID),
+			Participant:   proto.String(quotedMsg.Sender.String()),
+			QuotedMessage: quotedMsg.Message,
+		}
 	}
 
 	msg := &waE2E.Message{VideoMessage: videoMsg}

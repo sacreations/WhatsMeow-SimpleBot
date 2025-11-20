@@ -21,6 +21,10 @@ func NewDocumentSender(client *whatsmeow.Client) DocumentSender {
 }
 
 func (s *clientDocumentSender) SendDocument(to types.JID, docPath, title string) error {
+	return s.SendDocumentWithQuote(to, docPath, title, nil)
+}
+
+func (s *clientDocumentSender) SendDocumentWithQuote(to types.JID, docPath, title string, quotedMsg *QuotedMessage) error {
 	data, err := os.ReadFile(docPath)
 	if err != nil {
 		return fmt.Errorf("failed to read document: %w", err)
@@ -39,6 +43,14 @@ func (s *clientDocumentSender) SendDocument(to types.JID, docPath, title string)
 		FileSHA256:    uploaded.FileSHA256,
 		FileLength:    proto.Uint64(uploaded.FileLength),
 		Title:         proto.String(title),
+	}
+
+	if quotedMsg != nil {
+		docMsg.ContextInfo = &waE2E.ContextInfo{
+			StanzaID:      proto.String(quotedMsg.MessageID),
+			Participant:   proto.String(quotedMsg.Sender.String()),
+			QuotedMessage: quotedMsg.Message,
+		}
 	}
 
 	msg := &waE2E.Message{DocumentMessage: docMsg}

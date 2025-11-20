@@ -21,6 +21,10 @@ func NewImageSender(client *whatsmeow.Client) ImageSender {
 }
 
 func (s *clientImageSender) SendImage(to types.JID, imagePath, caption string) error {
+	return s.SendImageWithQuote(to, imagePath, caption, nil)
+}
+
+func (s *clientImageSender) SendImageWithQuote(to types.JID, imagePath, caption string, quotedMsg *QuotedMessage) error {
 	data, err := os.ReadFile(imagePath)
 	if err != nil {
 		return fmt.Errorf("failed to read image: %w", err)
@@ -39,6 +43,14 @@ func (s *clientImageSender) SendImage(to types.JID, imagePath, caption string) e
 		FileSHA256:    uploaded.FileSHA256,
 		FileLength:    proto.Uint64(uploaded.FileLength),
 		Caption:       proto.String(caption),
+	}
+
+	if quotedMsg != nil {
+		imgMsg.ContextInfo = &waE2E.ContextInfo{
+			StanzaID:      proto.String(quotedMsg.MessageID),
+			Participant:   proto.String(quotedMsg.Sender.String()),
+			QuotedMessage: quotedMsg.Message,
+		}
 	}
 
 	msg := &waE2E.Message{ImageMessage: imgMsg}

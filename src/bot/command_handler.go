@@ -7,6 +7,7 @@ import (
 	"whatsappBotGo/src/senders"
 
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 // Command represents a bot command
@@ -14,6 +15,7 @@ type Command interface {
 	Name() string
 	Description() string
 	Execute(args []string, sender types.JID) string
+	ExecuteWithContext(args []string, evt *events.Message, sender types.JID) string
 }
 
 // CommandHandler manages all bot commands
@@ -67,6 +69,32 @@ func (ch *CommandHandler) ProcessMessage(message string, sender types.JID) strin
 	// Find and execute command
 	if cmd, exists := ch.commands[commandName]; exists {
 		return cmd.Execute(args, sender)
+	}
+	return "" //return nothing if command not found
+}
+
+// ProcessMessageWithContext processes incoming messages and executes commands with event context
+func (ch *CommandHandler) ProcessMessageWithContext(message string, evt *events.Message, sender types.JID) string {
+	originalMessage := strings.TrimSpace(message)
+	message = strings.ToLower(originalMessage)
+
+	// Handle non-command messages
+	if !strings.HasPrefix(message, "/") {
+		return ch.handleNonCommand(originalMessage, sender)
+	}
+
+	// Parse command and arguments
+	parts := strings.Fields(message)
+	if len(parts) == 0 {
+		return "🤔 I didn't understand that. Type /help for available commands."
+	}
+
+	commandName := parts[0]
+	args := parts[1:]
+
+	// Find and execute command with context
+	if cmd, exists := ch.commands[commandName]; exists {
+		return cmd.ExecuteWithContext(args, evt, sender)
 	}
 	return "" //return nothing if command not found
 }

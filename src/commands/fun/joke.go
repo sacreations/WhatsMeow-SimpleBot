@@ -4,6 +4,7 @@ import (
 	"math/rand"
 
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 type JokeCommand struct{}
@@ -21,4 +22,8 @@ func (j *JokeCommand) Execute(args []string, sender types.JID) string {
 		"😅 Why don't eggs tell jokes? They'd crack each other up!",
 	}
 	return jokes[rand.Intn(len(jokes))]
+}
+
+func (j *JokeCommand) ExecuteWithContext(args []string, evt *events.Message, sender types.JID) string {
+	return j.Execute(args, sender)
 }

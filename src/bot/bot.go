@@ -190,11 +190,18 @@ func (bot *WhatsAppBot) handleMessage(evt *events.Message) {
 
 	fmt.Printf("Received message from %s: %s\n", evt.Info.Sender, messageText)
 
-	// Process message using command handler with sender information
-	response := bot.commandHandler.ProcessMessage(messageText, evt.Info.Sender)
+	// Create quoted message reference for replies
+	quotedMsg := &senders.QuotedMessage{
+		MessageID: evt.Info.ID,
+		Sender:    evt.Info.Sender,
+		Message:   evt.Message,
+	}
+
+	// Process message using command handler with context (for quoted replies)
+	response := bot.commandHandler.ProcessMessageWithContext(messageText, evt, evt.Info.Sender)
 	if response != "" {
 		if bot.sender != nil && bot.sender.Text != nil {
-			bot.sender.Text.SendText(evt.Info.Sender, response)
+			bot.sender.Text.SendTextWithQuote(evt.Info.Sender, response, quotedMsg)
 		} else {
 			bot.sendMessage(evt.Info.Sender, response)
 		}

@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 type HelpCommand struct{}
@@ -37,4 +38,8 @@ func (h *HelpCommand) Execute(args []string, sender types.JID) string {
 
 	response.WriteString("\nSend any message to interact with the bot!")
 	return response.String()
+}
+
+func (h *HelpCommand) ExecuteWithContext(args []string, evt *events.Message, sender types.JID) string {
+	return h.Execute(args, sender)
 }

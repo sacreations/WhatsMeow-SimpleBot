@@ -4,6 +4,7 @@ import (
 	"math/rand"
 
 	"go.mau.fi/whatsmeow/types"
+	"go.mau.fi/whatsmeow/types/events"
 )
 
 type QuoteCommand struct{}
@@ -21,4 +22,8 @@ func (q *QuoteCommand) Execute(args []string, sender types.JID) string {
 		"🚀 \"Believe you can and you're halfway there.\" - Theodore Roosevelt",
 	}
 	return quotes[rand.Intn(len(quotes))]
+}
+
+func (q *QuoteCommand) ExecuteWithContext(args []string, evt *events.Message, sender types.JID) string {
+	return q.Execute(args, sender)
 }
