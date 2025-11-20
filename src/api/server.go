@@ -22,6 +22,8 @@ type Server struct {
 	httpServer     *http.Server
 	TempDir        string
 	InstanceUserID string
+	startTime      time.Time
+	stopChan       chan bool
 }
 
 func NewServer(s *senders.Senders, instanceUserID string) *Server {
@@ -30,7 +32,14 @@ func NewServer(s *senders.Senders, instanceUserID string) *Server {
 	if addr == "" {
 		addr = ":8080"
 	}
-	srv := &Server{senders: s, Hub: hub, TempDir: os.TempDir(), InstanceUserID: instanceUserID}
+	srv := &Server{
+		senders:        s,
+		Hub:            hub,
+		TempDir:        os.TempDir(),
+		InstanceUserID: instanceUserID,
+		startTime:      time.Now(),
+		stopChan:       make(chan bool, 1),
+	}
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/api/send/text", srv.sendTextHandler)
@@ -38,6 +47,9 @@ func NewServer(s *senders.Senders, instanceUserID string) *Server {
 	mux.HandleFunc("/api/send/video", srv.sendVideoHandler)
 	mux.HandleFunc("/api/send/document", srv.sendDocumentHandler)
 	mux.HandleFunc("/ws", hub.ServeWS)
+	mux.HandleFunc("/api/health", srv.HandleHealth)
+	mux.HandleFunc("/api/control/status", srv.HandleControlStatus)
+	mux.HandleFunc("/api/control/stop", srv.HandleControlStop)
 
 	srv.httpServer = &http.Server{Addr: addr, Handler: mux}
 	return srv

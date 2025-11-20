@@ -19,7 +19,8 @@ import (
 	_ "modernc.org/sqlite"
 
 	"whatsappBotGo/src/api"
-	"whatsappBotGo/src/commands"
+	"whatsappBotGo/src/commands/fun"
+	"whatsappBotGo/src/commands/system"
 	"whatsappBotGo/src/functions"
 	"whatsappBotGo/src/senders"
 )
@@ -101,13 +102,13 @@ func NewBot() (*WhatsAppBot, error) {
 
 // registerCommands registers all available commands
 func registerCommands(handler *CommandHandler) {
-	handler.RegisterCommand(commands.NewHelpCommand())
-	handler.RegisterCommand(commands.NewPingCommand())
-	handler.RegisterCommand(commands.NewTimeCommand())
-	handler.RegisterCommand(commands.NewEchoCommand())
-	handler.RegisterCommand(commands.NewInfoCommand())
-	handler.RegisterCommand(commands.NewJokeCommand())
-	handler.RegisterCommand(commands.NewQuoteCommand())
+	handler.RegisterCommand(system.NewHelpCommand())
+	handler.RegisterCommand(system.NewPingCommand())
+	handler.RegisterCommand(system.NewTimeCommand())
+	handler.RegisterCommand(system.NewEchoCommand())
+	handler.RegisterCommand(system.NewInfoCommand())
+	handler.RegisterCommand(fun.NewJokeCommand())
+	handler.RegisterCommand(fun.NewQuoteCommand())
 }
 
 // Start starts the WhatsApp bot
