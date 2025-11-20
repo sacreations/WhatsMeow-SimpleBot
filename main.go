@@ -2,7 +2,7 @@ package main
 
 import (
 	"log"
-	"whatsappBotGo/bot"
+	"whatsappBotGo/src/bot"
 )
 
 func main() {

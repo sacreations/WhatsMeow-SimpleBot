@@ -1,4 +1,4 @@
-package bot
+package handlers
 
 import (
 	"context"
@@ -7,14 +7,13 @@ import (
 	"net/http"
 	"os"
 	"regexp"
-	"strconv"
 	"strings"
 	"time"
 
-	"go.mau.fi/whatsmeow"
-	waE2E "go.mau.fi/whatsmeow/proto/waE2E"
+	"whatsappBotGo/src/functions"
+	"whatsappBotGo/src/senders"
+
 	"go.mau.fi/whatsmeow/types"
-	"google.golang.org/protobuf/proto"
 )
 
 // Config holds configuration for the AutoReplyHandler
@@ -32,7 +31,7 @@ type Config struct {
 
 // AutoReplyHandler handles automatic replies and special message processing
 type AutoReplyHandler struct {
-	client       *whatsmeow.Client
+	senders      *senders.Senders
 	youtubeRegex *regexp.Regexp
 	tiktokRegex  *regexp.Regexp
 	config       *Config
@@ -42,15 +41,15 @@ type AutoReplyHandler struct {
 func NewAutoReplyHandler() *AutoReplyHandler {
 	// Load configuration from environment variables
 	config := &Config{
-		VideoAPIEndpoint:    getEnv("VIDEO_API_ENDPOINT", "https://api.dummy-video-downloader.com/download"),
-		VideoAPIKey:         getEnv("VIDEO_API_KEY", ""),
-		VideoAPITimeout:     getEnvInt("VIDEO_API_TIMEOUT", 30),
-		VideoQuality:        getEnv("VIDEO_QUALITY", "720p"),
-		VideoFormat:         getEnv("VIDEO_FORMAT", "mp4"),
-		TempDir:             getEnv("TEMP_DIR", "./tmp"),
-		MaxFileSize:         getEnv("MAX_FILE_SIZE", "50MB"),
-		CleanupAfterSend:    getEnvBool("CLEANUP_AFTER_SEND", true),
-		EnableVideoDownload: getEnvBool("ENABLE_VIDEO_DOWNLOAD", true),
+		VideoAPIEndpoint:    functions.GetEnv("VIDEO_API_ENDPOINT", "https://api.dummy-video-downloader.com/download"),
+		VideoAPIKey:         functions.GetEnv("VIDEO_API_KEY", ""),
+		VideoAPITimeout:     functions.GetEnvInt("VIDEO_API_TIMEOUT", 30),
+		VideoQuality:        functions.GetEnv("VIDEO_QUALITY", "720p"),
+		VideoFormat:         functions.GetEnv("VIDEO_FORMAT", "mp4"),
+		TempDir:             functions.GetEnv("TEMP_DIR", "./tmp"),
+		MaxFileSize:         functions.GetEnv("MAX_FILE_SIZE", "50MB"),
+		CleanupAfterSend:    functions.GetEnvBool("CLEANUP_AFTER_SEND", true),
+		EnableVideoDownload: functions.GetEnvBool("ENABLE_VIDEO_DOWNLOAD", true),
 	}
 
 	// Create temp directory if it doesn't exist
@@ -67,9 +66,9 @@ func NewAutoReplyHandler() *AutoReplyHandler {
 	}
 }
 
-// SetClient sets the WhatsApp client for sending media
-func (a *AutoReplyHandler) SetClient(client *whatsmeow.Client) {
-	a.client = client
+// SetSender sets the Sender for the auto reply handler
+func (a *AutoReplyHandler) SetSenders(s *senders.Senders) {
+	a.senders = s
 }
 
 // ProcessMessage processes incoming messages and returns appropriate responses
@@ -78,11 +77,12 @@ func (a *AutoReplyHandler) ProcessMessage(message string, sender types.JID) stri
 
 	// Check for video links first
 	if a.containsVideoLink(message) {
+		// Start background download and send via the sender
 		go a.handleVideoDownload(message, sender)
 		return "🎥 Video link detected! I'm downloading and processing it for you. Please wait..."
 	}
 
-	// Common greetings
+	// Greetings
 	greetings := []string{"hello", "hi", "hey", "good morning", "good afternoon", "good evening", "good night"}
 	for _, greeting := range greetings {
 		if strings.Contains(lowerMessage, greeting) {
@@ -137,7 +137,6 @@ func (a *AutoReplyHandler) ProcessMessage(message string, sender types.JID) stri
 		"🤖 I didn't quite understand that. Type /help to see my available commands!",
 	}
 
-	// Return a random default response
 	return defaultResponses[time.Now().Unix()%int64(len(defaultResponses))]
 }
 
@@ -171,21 +170,31 @@ func (a *AutoReplyHandler) handleVideoDownload(message string, sender types.JID)
 	}
 
 	if videoURL == "" {
-		a.sendMessage(sender, "❌ Could not extract video URL from the message.")
+		if a.senders != nil && a.senders.Text != nil {
+			a.senders.Text.SendText(sender, "❌ Could not extract video URL from the message.")
+		}
 		return
 	}
 
 	// Download video using dummy API (replace with actual implementation)
 	videoPath, err := a.downloadVideoFromAPI(videoURL, platform)
 	if err != nil {
-		a.sendMessage(sender, fmt.Sprintf("❌ Failed to download %s video: %v", platform, err))
+		if a.senders != nil && a.senders.Text != nil {
+			a.senders.Text.SendText(sender, fmt.Sprintf("❌ Failed to download %s video: %v", platform, err))
+		}
 		return
 	}
 
 	// Send the downloaded video
-	err = a.sendVideoMessage(sender, videoPath, fmt.Sprintf("🎥 Downloaded from %s", platform))
+	if a.senders != nil && a.senders.Video != nil {
+		err = a.senders.Video.SendVideo(sender, videoPath, fmt.Sprintf("🎥 Downloaded from %s", platform))
+	} else {
+		err = fmt.Errorf("video sender not configured")
+	}
 	if err != nil {
-		a.sendMessage(sender, fmt.Sprintf("❌ Failed to send video: %v", err))
+		if a.senders != nil && a.senders.Text != nil {
+			a.senders.Text.SendText(sender, fmt.Sprintf("❌ Failed to send video: %v", err))
+		}
 		return
 	}
 
@@ -194,7 +203,9 @@ func (a *AutoReplyHandler) handleVideoDownload(message string, sender types.JID)
 		os.Remove(videoPath)
 	}
 
-	a.sendMessage(sender, fmt.Sprintf("✅ Successfully downloaded and sent %s video!", platform))
+	if a.senders != nil && a.senders.Text != nil {
+		a.senders.Text.SendText(sender, fmt.Sprintf("✅ Successfully downloaded and sent %s video!", platform))
+	}
 }
 
 // downloadVideoFromAPI downloads video using the configured API endpoint
@@ -213,8 +224,9 @@ func (a *AutoReplyHandler) downloadVideoFromAPI(videoURL, platform string) (stri
 	}
 
 	// Create request
-	req, err := http.NewRequest("POST", a.config.VideoAPIEndpoint, strings.NewReader(payload))
+	req, err := http.NewRequestWithContext(context.Background(), "POST", a.config.VideoAPIEndpoint, strings.NewReader(payload))
 	if err != nil {
+		// For demo purposes, create a dummy video file
 		return a.createDummyVideo(platform)
 	}
 
@@ -222,7 +234,6 @@ func (a *AutoReplyHandler) downloadVideoFromAPI(videoURL, platform string) (stri
 	req.Header.Set("Content-Type", "application/json")
 	if a.config.VideoAPIKey != "" {
 		req.Header.Set("Authorization", "Bearer "+a.config.VideoAPIKey)
-		// or req.Header.Set("X-API-Key", a.config.VideoAPIKey)
 	}
 
 	// Make API request
@@ -268,80 +279,12 @@ func (a *AutoReplyHandler) createDummyVideo(platform string) (string, error) {
 	return tmpFile.Name(), nil
 }
 
-// sendVideoMessage sends a video message to the specified JID
-func (a *AutoReplyHandler) sendVideoMessage(to types.JID, videoPath, caption string) error {
-	if a.client == nil {
-		return fmt.Errorf("WhatsApp client not set")
+// sendText wrapper function for external code to use
+func (a *AutoReplyHandler) SendText(to types.JID, text string) error {
+	if a.senders != nil && a.senders.Text != nil {
+		return a.senders.Text.SendText(to, text)
 	}
-
-	// Read video file
-	videoData, err := os.ReadFile(videoPath)
-	if err != nil {
-		return fmt.Errorf("failed to read video file: %v", err)
-	}
-
-	// Upload video to WhatsApp
-	uploaded, err := a.client.Upload(context.Background(), videoData, "video")
-	if err != nil {
-		return fmt.Errorf("failed to upload video: %v", err)
-	}
-
-	// Create video message
-	videoMsg := &waE2E.VideoMessage{
-		URL:           proto.String(uploaded.URL),
-		DirectPath:    proto.String(uploaded.DirectPath),
-		MediaKey:      uploaded.MediaKey,
-		Mimetype:      proto.String("video/mp4"),
-		FileEncSHA256: uploaded.FileEncSHA256,
-		FileSHA256:    uploaded.FileSHA256,
-		FileLength:    proto.Uint64(uploaded.FileLength),
-		Caption:       proto.String(caption),
-	}
-
-	// Send message
-	msg := &waE2E.Message{
-		VideoMessage: videoMsg,
-	}
-
-	_, err = a.client.SendMessage(context.Background(), to, msg)
-	return err
+	return fmt.Errorf("text sender not configured")
 }
 
-// sendMessage sends a text message
-func (a *AutoReplyHandler) sendMessage(to types.JID, text string) {
-	if a.client == nil {
-		return
-	}
-
-	msg := &waE2E.Message{
-		Conversation: proto.String(text),
-	}
-
-	a.client.SendMessage(context.Background(), to, msg)
-}
-
-// Helper functions for environment variable parsing
-func getEnv(key, defaultValue string) string {
-	if value := os.Getenv(key); value != "" {
-		return value
-	}
-	return defaultValue
-}
-
-func getEnvInt(key string, defaultValue int) int {
-	if value := os.Getenv(key); value != "" {
-		if intValue, err := strconv.Atoi(value); err == nil {
-			return intValue
-		}
-	}
-	return defaultValue
-}
-
-func getEnvBool(key string, defaultValue bool) bool {
-	if value := os.Getenv(key); value != "" {
-		if boolValue, err := strconv.ParseBool(value); err == nil {
-			return boolValue
-		}
-	}
-	return defaultValue
-}
+// (env helpers moved to src/functions/env.go)
