@@ -9,14 +9,14 @@ import (
 	"strings"
 	"syscall"
 
-	qrcodeTerminal "github.com/Baozisoftware/qrcode-terminal-go"
-	_ "github.com/mattn/go-sqlite3"
+	"github.com/skip2/go-qrcode"
 	"go.mau.fi/whatsmeow"
 	waProto "go.mau.fi/whatsmeow/binary/proto"
 	"go.mau.fi/whatsmeow/store/sqlstore"
 	"go.mau.fi/whatsmeow/types"
 	"go.mau.fi/whatsmeow/types/events"
 	waLog "go.mau.fi/whatsmeow/util/log"
+	_ "modernc.org/sqlite"
 
 	"whatsappBotGo/commands"
 )
@@ -27,13 +27,24 @@ type WhatsAppBot struct {
 	commandHandler *CommandHandler
 }
 
+// printSmallQR prints a compact QR code in the terminal
+func printSmallQR(code string) {
+	qr, err := qrcode.New(code, qrcode.Low)
+	if err != nil {
+		fmt.Printf("Failed to generate QR code: %v\n", err)
+		fmt.Println("QR code string:", code)
+		return
+	}
+	fmt.Println(qr.ToSmallString(false))
+}
+
 // NewBot creates a new WhatsApp bot instance
 func NewBot() (*WhatsAppBot, error) {
 	ctx := context.Background()
 	dbLog := waLog.Stdout("DB", "INFO", true)
 
-	// Create SQLite store
-	container, err := sqlstore.New(ctx, "sqlite3", "file:session.db?_foreign_keys=on", dbLog)
+	// Create SQLite store with busy timeout to prevent locking
+	container, err := sqlstore.New(ctx, "sqlite", "file:session.db?_pragma=foreign_keys(1)&_pragma=busy_timeout(5000)", dbLog)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create store: %v", err)
 	}
@@ -89,9 +100,8 @@ func (bot *WhatsAppBot) Start() error {
 
 		for evt := range qrChan {
 			if evt.Event == "code" {
-				// Print QR code visually in terminal
-				qr := qrcodeTerminal.New()
-				qr.Get(evt.Code).Print()
+				// Print small QR code in terminal
+				printSmallQR(evt.Code)
 			} else {
 				fmt.Println("Login event:", evt.Event)
 			}
@@ -166,15 +176,18 @@ func (bot *WhatsAppBot) handleMessage(evt *events.Message) {
 
 // sendMessage sends a text message to specified JID
 func (bot *WhatsAppBot) sendMessage(to types.JID, text string) {
+	// Convert to user JID (remove device part) if needed
+	userJID := to.ToNonAD()
+
 	msg := &waProto.Message{
 		Conversation: &text,
 	}
 
-	_, err := bot.client.SendMessage(context.Background(), to, msg)
+	_, err := bot.client.SendMessage(context.Background(), userJID, msg)
 	if err != nil {
 		log.Printf("Failed to send message: %v", err)
 	} else {
-		fmt.Printf("Sent message to %s: %s\n", to, text)
+		fmt.Printf("Sent message to %s: %s\n", userJID, text)
 	}
 }
 
